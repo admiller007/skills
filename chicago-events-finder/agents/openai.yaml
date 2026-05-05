@@ -1,0 +1,4 @@
+interface:
+  display_name: "Chicago Events Finder"
+  short_description: "Find Chicago events across top local sources"
+  default_prompt: "Use $chicago-events-finder to find the best Chicago events for this weekend."
