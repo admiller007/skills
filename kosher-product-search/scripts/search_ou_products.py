@@ -22,7 +22,7 @@ def fetch_page(query: str, page: int, limit: int, timeout: float) -> dict[str, A
         headers={
             "accept": "application/json, text/plain, */*",
             "origin": "https://oukosher.org",
-            "user-agent": "Claude OU Kosher Product Search/1.0",
+            "user-agent": "Codex OU Kosher Product Search/1.0",
         },
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
