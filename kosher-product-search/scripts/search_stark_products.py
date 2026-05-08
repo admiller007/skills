@@ -17,6 +17,7 @@ from typing import Any
 
 BASE_URL = "https://www.star-k.org/listings"
 SECTIONS = ("star-k", "star-d", "star-s")
+RECORD_ID_LOOKUP_RE = re.compile(r"[A-Z0-9]{8}", re.I)
 RECORD_RE = re.compile(
     r'<a\s+class="fancybox"\s+href="#Div(?P<href_id>[^"]+)"\s+id="(?P<id>[^"]+)"[^>]*>(?P<title>.*?)</a>',
     re.I | re.S,
@@ -71,6 +72,19 @@ def section_from_url(search: str) -> str | None:
     if len(path) >= 2 and path[0] == "listings" and path[1] in SECTIONS:
         return path[1]
     return None
+
+
+def looks_like_record_id(value: str) -> bool:
+    return bool(RECORD_ID_LOOKUP_RE.fullmatch(value.strip()))
+
+
+def record_id_filter(args: argparse.Namespace) -> str:
+    if args.record_id:
+        return args.record_id
+    query = search_term(args.query)
+    if looks_like_record_id(query):
+        return query
+    return ""
 
 
 def search_url(search: str, section: str) -> str:
@@ -229,6 +243,7 @@ def parse_results(html_text: str, section: str, source_url: str) -> list[dict[st
 
 def matches_filters(row: dict[str, Any], args: argparse.Namespace) -> bool:
     query = search_term(args.query)
+    wanted_record_id = record_id_filter(args)
     haystack = " ".join(
         [
             row.get("company", ""),
@@ -237,15 +252,15 @@ def matches_filters(row: dict[str, Any], args: argparse.Namespace) -> bool:
             " ".join(row.get("categories", [])),
         ]
     )
-    if args.exact and norm(query) not in norm(haystack):
+    if args.exact and not wanted_record_id and norm(query) not in norm(haystack):
+        return False
+    if wanted_record_id and norm(wanted_record_id) not in norm(row.get("record_id")):
         return False
     if args.company and norm(args.company) not in norm(row.get("company")):
         return False
     if args.category and norm(args.category) not in norm(" ".join(row.get("categories", []))):
         return False
     if args.symbol and norm(args.symbol) not in norm(row.get("symbol")):
-        return False
-    if args.record_id and norm(args.record_id) not in norm(row.get("record_id")):
         return False
     return True
 
@@ -262,9 +277,12 @@ def collect_results(args: argparse.Namespace) -> tuple[list[str], list[dict[str,
     sections = sections_to_search(args)
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
+    lookup_record_id = record_id_filter(args)
+    query_is_url = urllib.parse.urlparse(args.query).scheme in {"http", "https"}
+    fetch_query = "" if lookup_record_id and not query_is_url else args.query
 
     for section in sections:
-        source_url, html_text = fetch_search_page(args.query, section, args.timeout)
+        source_url, html_text = fetch_search_page(fetch_query, section, args.timeout)
         for row in parse_results(html_text, section, source_url):
             key = row.get("record_id", "")
             if key in seen:

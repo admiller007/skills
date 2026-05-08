@@ -16,12 +16,17 @@ from typing import Any
 
 
 SEARCH_URL = "https://www.ok.org/product-search/"
+KID_RE = re.compile(r"[A-Z]{7}", re.I)
 
 
 def norm(value: Any) -> str:
     if value is None:
         return ""
     return str(value).casefold()
+
+
+def looks_like_kid(value: str) -> bool:
+    return bool(KID_RE.fullmatch(value.strip()))
 
 
 def search_url(search: str) -> str:
@@ -182,6 +187,8 @@ def print_text(total: int | None, rows: list[dict[str, str]], args: argparse.Nam
     if total is not None:
         print(f"OK total matches: {total}")
     print(f"Displayed matches after local filters: {len(rows)}")
+    if not rows and looks_like_kid(search_term(args.query)):
+        print("Note: The public OK product-search page does not resolve bare K-ID values. Search by product or company, then filter with --kid.")
     print()
 
     for index, row in enumerate(rows, start=1):

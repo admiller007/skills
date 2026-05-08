@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import urllib.error
 import urllib.parse
@@ -13,6 +14,7 @@ from typing import Any
 
 
 API_URL = "https://productsearch-v2.oukosher.org/api/v1/product"
+RECORD_ID_RE = re.compile(r"OU[A-Z0-9]*-[A-Z0-9-]+", re.I)
 
 
 def fetch_page(query: str, page: int, limit: int, timeout: float) -> dict[str, Any]:
@@ -29,10 +31,28 @@ def fetch_page(query: str, page: int, limit: int, timeout: float) -> dict[str, A
         return json.loads(response.read().decode("utf-8"))
 
 
+def fetch_record(record_id: str, timeout: float) -> dict[str, Any]:
+    quoted = urllib.parse.quote(record_id.strip(), safe="")
+    request = urllib.request.Request(
+        f"{API_URL}/{quoted}",
+        headers={
+            "accept": "application/json, text/plain, */*",
+            "origin": "https://oukosher.org",
+            "user-agent": "Codex OU Kosher Product Search/1.0",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
 def norm(value: Any) -> str:
     if value is None:
         return ""
     return str(value).casefold()
+
+
+def looks_like_record_id(value: str) -> bool:
+    return bool(RECORD_ID_RE.fullmatch(value.strip()))
 
 
 def designation(result: dict[str, Any]) -> str:
@@ -54,7 +74,9 @@ def category(result: dict[str, Any]) -> str:
 
 def matches_filters(result: dict[str, Any], args: argparse.Namespace) -> bool:
     product_name = norm(result.get("productName"))
-    if args.exact and norm(args.query) not in product_name:
+    if args.exact and not looks_like_record_id(args.query) and norm(args.query) not in product_name:
+        return False
+    if args.record_id and norm(args.record_id) not in norm(result.get("agencyUniqueId")):
         return False
     if args.brand and norm(args.brand) not in norm(result.get("brandName")):
         return False
@@ -66,6 +88,11 @@ def matches_filters(result: dict[str, Any], args: argparse.Namespace) -> bool:
 
 
 def collect_results(args: argparse.Namespace) -> tuple[int | None, list[dict[str, Any]]]:
+    if looks_like_record_id(args.query):
+        payload = fetch_record(args.query, args.timeout)
+        records = payload.get("results") or []
+        return len(records), [item for item in records if matches_filters(item, args)]
+
     page = args.page
     total: int | None = None
     results: list[dict[str, Any]] = []
@@ -129,6 +156,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--all-pages", action="store_true", help="Fetch every page until all results are read.")
     parser.add_argument("--max-pages", type=int, default=0, help="Maximum pages when using --all-pages. Default: no cap.")
     parser.add_argument("--exact", action="store_true", help="Require the query phrase to appear in productName.")
+    parser.add_argument("--record-id", help="Local filter: agencyUniqueId contains this OU record ID.")
     parser.add_argument("--brand", help="Local filter: brandName contains this value.")
     parser.add_argument("--company", help="Local filter: company contains this value.")
     parser.add_argument("--category", help="Local filter: category contains this value.")
