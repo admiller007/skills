@@ -1,4 +1,4 @@
 interface:
   display_name: "Kosher Product Search"
-  short_description: "Search OU, OK, KOF-K, STAR-K, KLBD, Kosher Check, OVK, and SKA kosher listings"
+  short_description: "Search OU, OK, KOF-K, STAR-K, COR, KSA, ASKcRc, KLBD, Kosher Check, OVK, and SKA kosher listings"
   default_prompt: "Use $kosher-product-search to find kosher certification details for a product."

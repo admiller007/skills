@@ -1,6 +1,6 @@
 ---
 name: "kosher-product-search"
-description: "Search Orthodox Union (OU), OK Kosher, KOF-K, STAR-K, KLBD / Is It Kosher UK, Kosher Check, OVK, and SKA certification or approved-product listings. Use when the user asks to find, verify, compare, or interpret kosher product records, company listings, certification status, symbols, dairy/pareve/meat designation, Passover status, company/brand listings, K-ID records, KOF-K UKD records, STAR-K record IDs, or whether a product appears in kosher agency databases."
+description: "Search Orthodox Union (OU), OK Kosher, KOF-K, STAR-K, COR Canada, KSA Kosher, ASKcRc / cRc, KLBD / Is It Kosher UK, Kosher Check, OVK, and SKA certification, approved-product, or consumer-guidance listings. Use when the user asks to find, verify, compare, or interpret kosher product records, company listings, certification status, symbols, dairy/pareve/meat designation, Passover status, company/brand listings, K-ID records, KOF-K/COR/KSA UKD or UKID records, STAR-K record IDs, cRc recommended-item records, or whether a product appears in kosher agency databases."
 ---
 
 # Kosher Product Search
@@ -15,6 +15,9 @@ python3 "$SKILL_DIR/scripts/search_ou_products.py" "tuna burger" --exact
 python3 "$SKILL_DIR/scripts/search_ok_products.py" "matcha" --limit 25
 node "$SKILL_DIR/scripts/search_kofk_products.js" "matcha" --limit 25
 python3 "$SKILL_DIR/scripts/search_stark_products.py" "pizza" --limit 25
+python3 "$SKILL_DIR/scripts/search_cor_products.py" "matcha" --limit 25
+python3 "$SKILL_DIR/scripts/search_ksa_products.py" "matcha" --limit 25
+python3 "$SKILL_DIR/scripts/search_askcrc_products.py" "slurpee" --limit 10
 python3 "$SKILL_DIR/scripts/search_klbd_products.py" "matcha" --limit 25
 python3 "$SKILL_DIR/scripts/search_koshercheck_products.py" "matcha" --limit 10
 python3 "$SKILL_DIR/scripts/search_ovk_products.py" "noodles" --limit 25
@@ -48,6 +51,26 @@ The STAR-K script parses the public listings page:
 https://www.star-k.org/listings?section=<star-k|star-d|star-s>&q=<query>
 ```
 
+The COR script calls the public COR product-search AJAX endpoint:
+
+```text
+POST https://cor.ca/wp-admin/admin-ajax.php
+action=cor_product_search&search=<query>
+```
+
+The KSA script calls the public KSA product-directory JSON endpoint:
+
+```text
+https://portal.ksakosher.org/directories/products/filter-products?FilterForm[name]=<query>
+```
+
+The ASKcRc script parses public cRc consumer-guidance result and item-detail pages:
+
+```text
+https://www.askcrc.org/results/basic/year-round/<query>
+https://www.askcrc.org/item/<category>/<record-id>
+```
+
 The KLBD script calls the Is It Kosher UK JSON query endpoint:
 
 ```text
@@ -72,7 +95,7 @@ The SKA script parses the public product-search result table:
 https://www.ska.org.uk/product-search?action=search&fb-KosherProduct=<query>
 ```
 
-The OU, OK, STAR-K, KLBD, Kosher Check, OVK, and SKA scripts use only Python standard library modules. The KOF-K helper uses Node and tries direct API access first; if KOF-K returns a Cloudflare browser challenge, it falls back to Puppeteer/Chrome. If network or browser access is blocked by sandboxing, rerun the same command with the appropriate approval/escalation.
+The OU, OK, STAR-K, COR, KSA, ASKcRc, KLBD, Kosher Check, OVK, and SKA scripts use only Python standard library modules. The KOF-K helper uses Node and tries direct API access first; if KOF-K returns a Cloudflare browser challenge, it falls back to Puppeteer/Chrome. If network or browser access is blocked by sandboxing, rerun the same command with the appropriate approval/escalation.
 
 ## Workflow
 
@@ -81,25 +104,32 @@ The OU, OK, STAR-K, KLBD, Kosher Check, OVK, and SKA scripts use only Python sta
    - Use `search_ok_products.py` for OK records or when the user links to `ok.org/product-search`.
    - Use `search_kofk_products.js` for KOF-K product rows or when the user links to `kof-k.org/search-results?type=Product`.
    - Use `search_stark_products.py` for STAR-K company/category listings or when the user links to `star-k.org/listings`.
+   - Use `search_cor_products.py` for COR Canada product/certificate rows or when the user links to `cor.ca/consumers/kosher-product-search`.
+   - Use `search_ksa_products.py` for KSA Kosher product-directory rows or when the user links to `portal.ksakosher.org/directories/products`.
+   - Use `search_askcrc_products.py` for cRc/ASKcRc consumer guidance, especially Slurpee lists and recommended-item records.
    - Use `search_klbd_products.py` for KLBD / Is It Kosher UK records, especially products bought/manufactured for the UK market.
    - Use `search_koshercheck_products.py` for Kosher Check product records.
    - Use `search_ovk_products.py` for OVK consumer product table records.
    - Use `search_ska_products.py` for Sephardi Kashrut Authority Certified/Approved product records.
-2. Search broadly with the product name, UPC, brand, or company. OU agency IDs, KOF-K UKD values, and STAR-K record IDs can be searched directly. OK K-IDs are only available after the public OK product-search page returns a matching product/company row; search by product or company first, then filter with `--kid`.
+2. Search broadly with the product name, UPC, brand, or company. OU agency IDs, KOF-K UKD values, COR UKD values, KSA UKID/VKD values, ASKcRc record IDs, and STAR-K record IDs can be searched directly or used as local filters where supported. OK K-IDs are only available after the public OK product-search page returns a matching product/company row; search by product or company first, then filter with `--kid`.
 3. For OK searches, pass either a search term or the full OK search URL, such as `https://www.ok.org/product-search/?term=matcha`.
 4. For KOF-K searches, expect product-level rows with UKD and certificate links. Use `--search-field ukd`, `--search-field manufacturer`, or `--search-field brand` when the query is not a product name.
 5. For STAR-K searches, expect company/category listings rather than granular product rows. Use `--section star-k`, `--section star-d`, `--section star-s`, or `--section all` when the symbol section matters.
-6. If results include unrelated products, rerun with `--exact` or source-specific filters:
+6. For ASKcRc searches, treat results as cRc consumer guidance and recommended-item records, not always direct certification records. The script fetches item detail pages by default; use `--no-details` for faster list-only searches.
+7. If results include unrelated products, rerun with `--exact` or source-specific filters:
    - OU: `--brand`, `--company`, `--category`, `--record-id`
    - OK: `--company`, `--status`, `--symbol`, `--kid`
    - KOF-K: `--manufacturer`, `--brand`, `--status`, `--passover`, `--ukd`, `--product-code`
    - STAR-K: `--company`, `--category`, `--symbol`, `--record-id`
+   - COR: `--brand`, `--company`, `--status`, `--ukd`, `--active-only`
+   - KSA: `--field product|ukid|manufacturer|brand`, `--manufacturer`, `--brand`, `--status`, `--passover`, `--ukid`, `--product-code`
+   - ASKcRc: `--category`, `--status`, `--contains`, `--no-details`
    - KLBD: `--brand`, `--category`, `--status`, `--designation`, `--certification`
    - Kosher Check: `--brand`, `--company`, `--category`, `--designation`, `--record-id`
    - OVK: `--brand`, `--status`, `--passover`, `--restriction`
    - SKA: `--field product|brand|category`, `--brand`, `--category`, `--status`, `--designation`, `--logo`, `--passover`
-7. Report only records that actually match the user's product or company/category intent. Clearly separate close matches from confirmed matches.
-8. Interpret fields conservatively:
+8. Report only records that actually match the user's product or company/category intent. Clearly separate close matches from confirmed matches.
+9. Interpret fields conservatively:
    - OU `symbol`: OU mark(s) expected on the product label, such as `OU` or `OU-D`.
    - OU `dpm`: kosher designation, such as Pareve, Dairy, or Meat.
    - OU `status` / `conditions`: certification condition. If it says `Symbol required`, do not say the item is certified unless the actual package bears that symbol.
@@ -114,11 +144,14 @@ The OU, OK, STAR-K, KLBD, Kosher Check, OVK, and SKA scripts use only Python sta
    - STAR-K `symbols`: listed STAR-K mark(s), such as `STAR-K`, `STAR-D`, or `STAR-S`.
    - STAR-K `categories`: certified category or establishment type shown in the listing.
    - STAR-K `record_id` / `letter_url`: listing code and certification-letter URL; include them when disambiguating.
+   - COR `status`, `expires`, and `ukd_id`: COR product status, expiry date, and product/certificate identifier when returned. Expired or inactive rows should not be treated as current certification.
+   - KSA `designation`, `symbol`, `passover`, and `ukid`: KSA product fields. KSA states that listed products must bear the KSA symbol of certification.
+   - ASKcRc `status`: cRc consumer guidance status, often `Recommended`; include the record detail URL and any country or scope notes. Do not rewrite ASKcRc guidance as direct agency certification unless the detail page says so.
    - KLBD results apply to products manufactured for the UK market. Treat `kosher_raw_data`, `certification`, `milkmeat`, and notes as the controlling evidence.
    - Kosher Check `symbol_condition` commonly says a kosher symbol is required; do not treat an unlabeled package as certified.
    - OVK's public table says it only includes some popular consumer certified items; absence from this table is not complete evidence.
    - SKA distinguishes `Certified` from `Approved`; include `SKA Logo`, `Passover`, and `Notes` fields when present.
-9. For shopping or sourcing requests, use agency results as certification evidence, then search the web or store/distributor catalogs for purchase availability.
+10. For shopping or sourcing requests, use agency results as certification evidence, then search the web or store/distributor catalogs for purchase availability.
 
 ## Script Examples
 
@@ -171,6 +204,21 @@ python3 "$SKILL_DIR/scripts/search_stark_products.py" "tea" --section all --limi
 # Direct STAR-K record ID lookup
 python3 "$SKILL_DIR/scripts/search_stark_products.py" "P4XL0PQQ"
 
+# COR Canada product search
+python3 "$SKILL_DIR/scripts/search_cor_products.py" "matcha" --active-only --limit 10
+
+# KSA product search
+python3 "$SKILL_DIR/scripts/search_ksa_products.py" "matcha" --status pareve --limit 10
+
+# KSA UKID/VKD lookup
+python3 "$SKILL_DIR/scripts/search_ksa_products.py" "KSA3V-Y6MVVW5H" --field ukid
+
+# ASKcRc/cRc consumer guidance
+python3 "$SKILL_DIR/scripts/search_askcrc_products.py" "slurpee" --limit 10
+
+# ASKcRc faster list-only search
+python3 "$SKILL_DIR/scripts/search_askcrc_products.py" "slurpee" --no-details --limit 25
+
 # KLBD / Is It Kosher UK search
 python3 "$SKILL_DIR/scripts/search_klbd_products.py" "matcha" --limit 25
 
@@ -197,8 +245,8 @@ python3 "$SKILL_DIR/scripts/search_ska_products.py" "ocado" --field brand --stat
 
 When answering users, include:
 
-- Product name, brand/company, certifying agency, and record ID when available (`agencyUniqueId` for OU, K-ID for OK, UKD for KOF-K, STAR-K record ID for STAR-K, Kosher Check SKU/record).
+- Product name, brand/company, certifying agency or guidance source, and record ID when available (`agencyUniqueId` for OU, K-ID for OK, UKD for KOF-K/COR, KSA UKID/VKD, cRc record ID, STAR-K record ID, Kosher Check SKU/record).
 - Symbol, designation/status, Passover status when available, and certification conditions.
 - A plain-English conclusion, such as: "This appears in the OU database as OU Pareve, but the package must bear the OU symbol and it is not for Passover."
 
-Avoid treating agency search results as proof for unlabeled packages. OU commonly says `Symbol required`, OK rows may show a restriction icon, KOF-K product rows may describe ingredients or industrial products rather than retail SKUs, and STAR-K often lists companies/categories rather than SKU-level products. In all cases, the actual package label and any agency conditions still matter.
+Avoid treating agency search results as proof for unlabeled packages. OU commonly says `Symbol required`, OK rows may show a restriction icon, KOF-K and KSA product rows may describe ingredients or industrial products rather than retail SKUs, ASKcRc may be consumer guidance rather than certification, and STAR-K often lists companies/categories rather than SKU-level products. In all cases, the actual package label, region, expiry/status, and any agency conditions still matter.
